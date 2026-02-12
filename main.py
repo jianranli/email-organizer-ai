@@ -1,1 +1,63 @@
-import os\nimport json\nfrom google.auth.transport.requests import Request\nfrom google.oauth2.credentials import Credentials\nfrom googleapiclient.discovery import build\n\n# Load configuration\ndef load_config():\n    with open('config.json') as config_file:\n        return json.load(config_file)\n\n# Initialize Gmail client\ndef initialize_gmail_client():\n    creds = None\n    config = load_config()\n    # The file token.json stores the user's access and refresh tokens, and is created\n    # automatically when the authorization flow completes for the first time.\n    if os.path.exists('token.json'):\n        creds = Credentials.from_authorized_user_file('token.json', config['scopes'])\n    # If there are no (valid) credentials available, let the user log in.\n    if not creds or not creds.valid:\n        if creds and creds.expired and creds.refresh_token:\n            creds.refresh(Request())\n        else:\n            raise Exception('No valid credentials available.')\n    return build('gmail', 'v1', credentials=creds)\n\n# Fetch unread emails\ndef fetch_unread_emails(service):\n    results = service.users().messages().list(userId='me', labelIds=['INBOX'], q='is:unread').execute()\n    messages = results.get('messages', [])\n    return messages\n\n# Process emails with AI (pseudo-code)\ndef process_emails_with_ai(messages):\n    for msg in messages:\n        # Here would be the implementation of AI processing of emails\n        print(f'Processing email ID: {msg['id']}')\n        # Apply labels using the AI output\n        # Example - apply_label(msg['id'], calculated_label)\n\n# Main function\ndef main():\n    service = initialize_gmail_client()\n    unread_emails = fetch_unread_emails(service)\n    if unread_emails: \n        process_emails_with_ai(unread_emails)\n    else:\n        print('No unread emails found.')\n\nif __name__ == '__main__':\n    main()\n
+import logging
+from gmail_client import GmailClient
+from ai_organizer import EmailOrganizer
+from config import Config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def main():
+    """Main entry point for the email organizer."""
+    try:
+        config = Config()
+        gmail_client = GmailClient(config)
+        organizer = EmailOrganizer(config)
+        
+        logger.info("Starting email organization process...")
+        
+        # Authenticate with Gmail
+        service = gmail_client.authenticate()
+        logger.info("Successfully authenticated with Gmail")
+        
+        # Fetch unread emails
+        emails = gmail_client.fetch_emails(service, query='is:unread')
+        logger.info(f"Fetched {len(emails)} unread emails")
+        
+        # Process each email
+        for email in emails:
+            try:
+                # Extract email content
+                email_id = email['id']
+                message = gmail_client.get_message(service, email_id)
+                
+                # Organize with AI
+                categorization = organizer.categorize_email(message)
+                summary = organizer.summarize_email(message)
+                action_items = organizer.extract_action_items(message)
+                
+                logger.info(f"Email {email_id} categorized as: {categorization['category']}")
+                
+                # Create or get label
+                label_id = gmail_client.create_label_if_not_exists(
+                    service, 
+                    categorization['category']
+                )
+                
+                # Apply label and archive
+                gmail_client.apply_label(service, email_id, label_id)
+                gmail_client.archive_email(service, email_id)
+                
+                logger.info(f"Email {email_id} processed and archived")
+                
+            except Exception as e:
+                logger.error(f"Error processing email {email_id}: {str(e)}")
+                continue
+        
+        logger.info("Email organization complete!")
+        
+    except Exception as e:
+        logger.error(f"Fatal error: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()
