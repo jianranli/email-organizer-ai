@@ -1,0 +1,13 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Environment Variables
+.env
+
+# Credentials
+credentials.json
+
+# Virtual Environments
+venv/
+.env/
