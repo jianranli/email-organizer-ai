@@ -1,6 +1,6 @@
 import openai
 
-class AICategorizer:
+class EmailOrganizer:
     def __init__(self, api_key):
         openai.api_key = api_key
 
@@ -43,8 +43,8 @@ class AICategorizer:
 # Usage Example:
 # api_key = 'your-openai-api-key'
 # email_content = 'Dear team, please review the attached report and send me feedback.'
-# categorizer = AICategorizer(api_key)
-# category = categorizer.categorize_email(email_content)
-# summary = categorizer.summarize_email(email_content)
-# action_items = categorizer.extract_action_items(email_content)
-# confidence = categorizer.confidence_scoring(email_content)
+# organizer = EmailOrganizer(api_key)
+# category = organizer.categorize_email(email_content)
+# summary = organizer.summarize_email(email_content)
+# action_items = organizer.extract_action_items(email_content)
+# confidence = organizer.confidence_scoring(email_content)
