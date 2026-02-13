@@ -1,6 +1,9 @@
 import unittest
 import os
 import json
+import base64
+from email.mime.text import MIMEText
+from datetime import datetime
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 
@@ -19,18 +22,75 @@ class TestGmailClientIntegration(unittest.TestCase):
             self.skipTest(f"Invalid credentials format: {e}")
 
     def test_list_users_labels(self):
-        # Test to list labels for the authorized user
+        """Test to list labels for the authorized user"""
         results = self.service.users().labels().list(userId='me').execute()
         labels = results.get('labels', [])
         self.assertIsInstance(labels, list)
         self.assertGreater(len(labels), 0, "Expected at least one label")
+        
+        # Verify common labels exist
+        label_names = [label['name'] for label in labels]
+        self.assertIn('INBOX', label_names, "INBOX label should exist")
+        print(f"✅ Found {len(labels)} labels in Gmail account")
 
+    @unittest.skipUnless(
+        os.environ.get('SEND_REAL_EMAILS', 'false').lower() == 'true',
+        "Set SEND_REAL_EMAILS=true to test actual email sending"
+    )
     def test_send_email(self):
-        # Test to send an email
-        message = {'raw': 'Base64 encoded email content'}  # Replace with actual email content
-        sent_message = self.service.users().messages().send(userId='me', body=message).execute()
+        """Test sending an actual email to yourself"""
+        # Get the authenticated user's email
+        profile = self.service.users().getProfile(userId='me').execute()
+        user_email = profile.get('emailAddress')
+        
+        # Create a proper email message
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        message = MIMEText(
+            f'This is a test email sent from integration tests.\n\n'
+            f'Timestamp: {timestamp}\n'
+            f'Test: test_send_email\n\n'
+            f'If you see this email, the integration test is working correctly!'
+        )
+        message['to'] = user_email  # Send to yourself
+        message['subject'] = f'[Integration Test] Email Send Test - {timestamp}'
+        
+        # Encode the message properly
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        
+        # Send the email
+        sent_message = self.service.users().messages().send(
+            userId='me',
+            body={'raw': raw_message}
+        ).execute()
+        
+        # Verify response
         self.assertIn('id', sent_message)
         self.assertIsInstance(sent_message['id'], str)
+        print(f"✅ Test email sent successfully!")
+        print(f"   Message ID: {sent_message['id']}")
+        print(f"   Recipient: {user_email}")
+        print(f"   Check your inbox for the test email!")
+
+    def test_get_user_profile(self):
+        """Test retrieving user profile information"""
+        profile = self.service.users().getProfile(userId='me').execute()
+        
+        self.assertIn('emailAddress', profile)
+        self.assertIn('messagesTotal', profile)
+        self.assertIn('threadsTotal', profile)
+        
+        email = profile.get('emailAddress')
+        total_messages = profile.get('messagesTotal')
+        total_threads = profile.get('threadsTotal')
+        
+        self.assertIsInstance(email, str)
+        self.assertIsInstance(total_messages, int)
+        self.assertIsInstance(total_threads, int)
+        
+        print(f"✅ Profile retrieved successfully")
+        print(f"   Account: {email}")
+        print(f"   Total messages: {total_messages}")
+        print(f"   Total threads: {total_threads}")
 
 if __name__ == '__main__':
     unittest.main()
