@@ -5,6 +5,16 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      send_emails:
+        description: 'Send real test emails?'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   test:
@@ -17,7 +27,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       
       - name: Install dependencies
         run: |
@@ -29,6 +39,6 @@ jobs:
       
       - name: Run integration tests
         env:
-          # This line tells GitHub to use the secret
           GMAIL_CREDENTIALS_JSON: ${{ secrets.GMAIL_CREDENTIALS_JSON }}
+          SEND_REAL_EMAILS: ${{ github.event.inputs.send_emails || 'false' }}
         run: python -m unittest test_gmail_client_integration.py -v
