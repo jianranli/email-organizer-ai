@@ -11,3 +11,8 @@ credentials.json
 # Virtual Environments
 venv/
 .env/
+
+# Test coverage
+.coverage
+.pytest_cache/
+htmlcov/
