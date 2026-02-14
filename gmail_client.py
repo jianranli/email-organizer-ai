@@ -4,10 +4,15 @@ import json
 import google.auth
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/gmail.labels']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/gmail.labels'
+]
 
 class GmailClient:
     def __init__(self):
@@ -16,17 +21,50 @@ class GmailClient:
         self.authenticate()
 
     def authenticate(self):
-        # Load credentials from token.json if it exists, otherwise go through OAuth flow
+        """Authenticate with Gmail API using multiple methods."""
+        
+        # Method 1: Try environment variable (for Codespaces/CI)
+        credentials_json = os.environ.get('GMAIL_CREDENTIALS_JSON')
+        if credentials_json:
+            try:
+                credentials_info = json.loads(credentials_json)
+                cred_type = credentials_info.get('type', 'authorized_user')
+                
+                if cred_type == 'service_account':
+                    self.creds = service_account.Credentials.from_service_account_info(
+                        credentials_info,
+                        scopes=SCOPES
+                    )
+                else:
+                    self.creds = Credentials.from_authorized_user_info(
+                        credentials_info,
+                        scopes=SCOPES
+                    )
+                
+                self.service = build('gmail', 'v1', credentials=self.creds)
+                return
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                print(f"Warning: Failed to load credentials from environment: {e}")
+        
+        # Method 2: Try token.json (for local development with saved token)
         if os.path.exists('token.json'):
             self.creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-        else:
+        
+        # Method 3: Try credentials.json (for first-time OAuth flow)
+        elif os.path.exists('credentials.json'):
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
             self.creds = flow.run_local_server(port=0)
             # Save the credentials for the next run
-            with open('token.json', 'w') as token:  # Save the token for future use
+            with open('token.json', 'w') as token:
                 token.write(self.creds.to_json())
+        else:
+            raise FileNotFoundError(
+                "No credentials found. Please either:\n"
+                "1. Set GMAIL_CREDENTIALS_JSON environment variable, or\n"
+                "2. Provide credentials.json file"
+            )
 
-        # Make sure the credentials are valid
+        # Refresh expired credentials
         if self.creds and self.creds.expired and self.creds.refresh_token:
             self.creds.refresh(Request())
 
@@ -54,7 +92,11 @@ class GmailClient:
             return self.service.users().labels().list(userId='me').execute()
 
     def modify_message(self, msg_id, labels_to_add=[], labels_to_remove=[]):
-        self.service.users().messages().modify(userId='me', id=msg_id, body={'addLabelIds': labels_to_add, 'removeLabelIds': labels_to_remove}).execute()
+        self.service.users().messages().modify(
+            userId='me',
+            id=msg_id,
+            body={'addLabelIds': labels_to_add, 'removeLabelIds': labels_to_remove}
+        ).execute()
 
 if __name__ == '__main__':
     client = GmailClient()
