@@ -55,6 +55,51 @@ class TestGmailClientIntegration(unittest.TestCase):
         self.assertIn('INBOX', label_names, "INBOX label should exist")
         print(f"✅ Found {len(labels)} labels in Gmail account")
 
+    def test_create_and_delete_category(self):
+        """Test creating a new label/category and then deleting it"""
+        # Create a unique label name with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        label_name = f"TestCategory_{timestamp}"
+        
+        # Create the label
+        label_body = {
+            'name': label_name,
+            'labelListVisibility': 'labelShow',  # Show in label list
+            'messageListVisibility': 'show',     # Show messages with this label
+            'type': 'user'                        # User-created label
+        }
+        
+        created_label = self.service.users().labels().create(
+            userId='me',
+            body=label_body
+        ).execute()
+        
+        # Verify the label was created
+        self.assertIn('id', created_label)
+        self.assertIn('name', created_label)
+        self.assertEqual(created_label['name'], label_name)
+        
+        label_id = created_label['id']
+        print(f"✅ Label created successfully!")
+        print(f"   Label ID: {label_id}")
+        print(f"   Label Name: {label_name}")
+        
+        # Verify it appears in the labels list
+        results = self.service.users().labels().list(userId='me').execute()
+        labels = results.get('labels', [])
+        label_names = [label['name'] for label in labels]
+        self.assertIn(label_name, label_names, "Created label should appear in labels list")
+        
+        # Clean up: Delete the test label
+        try:
+            self.service.users().labels().delete(
+                userId='me',
+                id=label_id
+            ).execute()
+            print(f"✅ Test label deleted successfully (cleanup)")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not delete test label: {e}")
+
     @unittest.skipUnless(
         os.environ.get('SEND_REAL_EMAILS', '').lower() in ['true', '1', 'yes'],
         "Set SEND_REAL_EMAILS=true to test actual email sending"
