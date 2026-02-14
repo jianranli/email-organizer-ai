@@ -100,6 +100,75 @@ class TestGmailClientIntegration(unittest.TestCase):
         except Exception as e:
             print(f"⚠️  Warning: Could not delete test label: {e}")
 
+    def test_print_recent_emails_and_categories(self):
+        """Test to print subjects of last 3 emails and all categories"""
+        # Get all categories/labels
+        print("\n📋 ALL CATEGORIES/LABELS:")
+        print("=" * 60)
+        labels_result = self.service.users().labels().list(userId='me').execute()
+        labels = labels_result.get('labels', [])
+        
+        # Separate system labels from user labels
+        system_labels = []
+        user_labels = []
+        
+        for label in labels:
+            if label.get('type') == 'system':
+                system_labels.append(label['name'])
+            else:
+                user_labels.append(label['name'])
+        
+        print(f"\n🔧 System Labels ({len(system_labels)}):")
+        for label_name in sorted(system_labels):
+            print(f"   - {label_name}")
+        
+        print(f"\n👤 User Labels ({len(user_labels)}):")
+        if user_labels:
+            for label_name in sorted(user_labels):
+                print(f"   - {label_name}")
+        else:
+            print("   (No user-created labels)")
+        
+        # Get last 3 emails
+        print("\n" + "=" * 60)
+        print("📧 LAST 3 EMAILS:")
+        print("=" * 60)
+        
+        messages_result = self.service.users().messages().list(
+            userId='me',
+            maxResults=3
+        ).execute()
+        
+        messages = messages_result.get('messages', [])
+        
+        if not messages:
+            print("   (No messages found)")
+        else:
+            for i, message in enumerate(messages, 1):
+                msg = self.service.users().messages().get(
+                    userId='me',
+                    id=message['id'],
+                    format='metadata',
+                    metadataHeaders=['Subject', 'From', 'Date']
+                ).execute()
+                
+                # Extract headers
+                headers = msg.get('payload', {}).get('headers', [])
+                subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '(No Subject)')
+                from_addr = next((h['value'] for h in headers if h['name'] == 'From'), '(Unknown)')
+                date = next((h['value'] for h in headers if h['name'] == 'Date'), '(Unknown Date)')
+                
+                print(f"\n{i}. Subject: {subject}")
+                print(f"   From: {from_addr}")
+                print(f"   Date: {date}")
+                print(f"   Message ID: {message['id']}")
+        
+        print("\n" + "=" * 60)
+        
+        # Assertions
+        self.assertIsInstance(labels, list)
+        self.assertGreater(len(labels), 0, "Should have at least one label")
+
     @unittest.skipUnless(
         os.environ.get('SEND_REAL_EMAILS', '').lower() in ['true', '1', 'yes'],
         "Set SEND_REAL_EMAILS=true to test actual email sending"
