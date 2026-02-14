@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from datetime import datetime
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 
 class TestGmailClientIntegration(unittest.TestCase):
     def setUp(self):
@@ -16,8 +17,29 @@ class TestGmailClientIntegration(unittest.TestCase):
                 self.skipTest("GMAIL_CREDENTIALS_JSON environment variable not set")
             
             credentials_info = json.loads(credentials_json)
-            self.credentials = Credentials.from_authorized_user_info(credentials_info)
+            
+            # Check credential type and load accordingly
+            cred_type = credentials_info.get('type', 'authorized_user')
+            
+            if cred_type == 'service_account':
+                # Service account credentials
+                SCOPES = [
+                    'https://www.googleapis.com/auth/gmail.modify',
+                    'https://www.googleapis.com/auth/gmail.send',
+                    'https://www.googleapis.com/auth/gmail.labels'
+                ]
+                self.credentials = service_account.Credentials.from_service_account_info(
+                    credentials_info,
+                    scopes=SCOPES
+                )
+                # For service accounts with domain-wide delegation, you may need to specify a user
+                # self.credentials = self.credentials.with_subject('user@yourdomain.com')
+            else:
+                # OAuth2 authorized user credentials
+                self.credentials = Credentials.from_authorized_user_info(credentials_info)
+            
             self.service = build('gmail', 'v1', credentials=self.credentials)
+            
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             self.skipTest(f"Invalid credentials format: {e}")
 
@@ -34,7 +56,7 @@ class TestGmailClientIntegration(unittest.TestCase):
         print(f"✅ Found {len(labels)} labels in Gmail account")
 
     @unittest.skipUnless(
-        os.environ.get('SEND_REAL_EMAILS', 'false').lower() == 'true',
+        os.environ.get('SEND_REAL_EMAILS', '').lower() in ['true', '1', 'yes'],
         "Set SEND_REAL_EMAILS=true to test actual email sending"
     )
     def test_send_email(self):
