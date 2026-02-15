@@ -1,5 +1,6 @@
 from openai import OpenAI
 from typing import Dict, List, Optional
+from config import Config
 
 class EmailOrganizer:
     """AI-powered email organizer using OpenAI."""
@@ -11,19 +12,21 @@ class EmailOrganizer:
             config: Config object with OPENAI_API_KEY and other settings
             api_key: Direct API key (for backward compatibility)
         """
-        self.config = config
-        
         # Get API key from config first, then fallback to direct api_key param
         if config and config.OPENAI_API_KEY:
+            self.config = config
             self.client = OpenAI(api_key=config.OPENAI_API_KEY)
             self.model = config.OPENAI_MODEL
             self.max_tokens = config.OPENAI_MAX_TOKENS
             self.categories = config.EMAIL_CATEGORIES
         elif api_key:
+            # For backward compatibility: create a Config instance to get defaults
+            # This ensures a single source of truth for default categories
+            self.config = Config()
             self.client = OpenAI(api_key=api_key)
             self.model = 'gpt-3.5-turbo'
             self.max_tokens = 500
-            self.categories = ['Primary', 'Social', 'Promotions', 'Updates', 'Forums']
+            self.categories = self.config.EMAIL_CATEGORIES  # Use Config defaults
         else:
             raise ValueError(
                 "No API key provided. Either pass a Config object with OPENAI_API_KEY "
