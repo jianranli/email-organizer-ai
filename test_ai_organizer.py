@@ -13,9 +13,12 @@ class TestEmailOrganizerInitialization(unittest.TestCase):
             'EMAIL_CATEGORIES': ['Work', 'Personal', 'Promotions']
         })()
     
-    @patch('openai.ChatCompletion.create')
-    def test_initialization(self, mock_openai):
-        mock_openai.return_value = {'choices': [{'message': {'content': 'test'}}]}
+    @patch('ai_organizer.OpenAI')
+    def test_initialization(self, mock_openai_class):
+        """Test EmailOrganizer initialization."""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+        
         email_organizer = EmailOrganizer(config=self.mock_config)
         self.assertIsNotNone(email_organizer)
         self.assertEqual(email_organizer.model, 'gpt-3.5-turbo')
@@ -31,20 +34,23 @@ class TestEmailOrganizerCategorization(unittest.TestCase):
             'EMAIL_CATEGORIES': ['Work', 'Personal', 'Promotions']
         })()
     
-    @patch('openai.ChatCompletion.create')
-    def test_categorization(self, mock_openai):
-        mock_openai.return_value = {
-            'choices': [
-                {
-                    'message': {
-                        'content': 'Work'
-                    }
-                }
-            ]
-        }
+    @patch('ai_organizer.OpenAI')
+    def test_categorization(self, mock_openai_class):
+        """Test email categorization."""
+        # Create mock response
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = 'Work'
+        
+        # Setup mock client
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
         
         email_organizer = EmailOrganizer(config=self.mock_config)
         categories = email_organizer.categorize_email('Test email content')
+        
         self.assertIn('category', categories)
         self.assertEqual(categories['category'], 'Work')
 
@@ -59,20 +65,23 @@ class TestEmailOrganizerSummarization(unittest.TestCase):
             'EMAIL_CATEGORIES': ['Work', 'Personal', 'Promotions']
         })()
     
-    @patch('openai.ChatCompletion.create')
-    def test_summarization(self, mock_openai):
-        mock_openai.return_value = {
-            'choices': [
-                {
-                    'message': {
-                        'content': 'Test summary of the email content.'
-                    }
-                }
-            ]
-        }
+    @patch('ai_organizer.OpenAI')
+    def test_summarization(self, mock_openai_class):
+        """Test email summarization."""
+        # Create mock response
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = 'Test summary of the email content.'
+        
+        # Setup mock client
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
         
         email_organizer = EmailOrganizer(config=self.mock_config)
         summary = email_organizer.summarize_email('Test email content')
+        
         self.assertIsInstance(summary, str)
         self.assertEqual(summary, 'Test summary of the email content.')
 
@@ -87,20 +96,23 @@ class TestEmailOrganizerActionItems(unittest.TestCase):
             'EMAIL_CATEGORIES': ['Work', 'Personal', 'Promotions']
         })()
     
-    @patch('openai.ChatCompletion.create')
-    def test_action_items(self, mock_openai):
-        mock_openai.return_value = {
-            'choices': [
-                {
-                    'message': {
-                        'content': '- Task 1: Review document\n- Task 2: Send reply'
-                    }
-                }
-            ]
-        }
+    @patch('ai_organizer.OpenAI')
+    def test_action_items(self, mock_openai_class):
+        """Test action item extraction."""
+        # Create mock response
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = '- Task 1: Review document\n- Task 2: Send reply'
+        
+        # Setup mock client
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
         
         email_organizer = EmailOrganizer(config=self.mock_config)
         action_items = email_organizer.extract_action_items('Test email content')
+        
         self.assertIsInstance(action_items, list)
         self.assertGreater(len(action_items), 0)
 
@@ -115,20 +127,23 @@ class TestEmailOrganizerConfidenceScoring(unittest.TestCase):
             'EMAIL_CATEGORIES': ['Work', 'Personal', 'Promotions']
         })()
     
-    @patch('openai.ChatCompletion.create')
-    def test_confidence_scoring(self, mock_openai):
-        mock_openai.return_value = {
-            'choices': [
-                {
-                    'message': {
-                        'content': 'Work: 85%\nPersonal: 10%\nPromotions: 5%'
-                    }
-                }
-            ]
-        }
+    @patch('ai_organizer.OpenAI')
+    def test_confidence_scoring(self, mock_openai_class):
+        """Test confidence scoring."""
+        # Create mock response
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = MagicMock()
+        mock_response.choices[0].message.content = 'Work: 85%\nPersonal: 10%\nPromotions: 5%'
+        
+        # Setup mock client
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai_class.return_value = mock_client
         
         email_organizer = EmailOrganizer(config=self.mock_config)
         confidence = email_organizer.confidence_scoring('Test email content')
+        
         self.assertIsInstance(confidence, dict)
         self.assertIn('Work', confidence)
         self.assertGreaterEqual(confidence['Work'], 0)
@@ -144,17 +159,11 @@ class TestEmailOrganizerAPICallParameters(unittest.TestCase):
             'EMAIL_CATEGORIES': ['Work', 'Personal', 'Promotions']
         })()
     
-    @patch('openai.ChatCompletion.create')
-    def test_api_call_parameters(self, mock_openai):
-        mock_openai.return_value = {
-            'choices': [
-                {
-                    'message': {
-                        'content': 'Work'
-                    }
-                }
-            ]
-        }
+    @patch('ai_organizer.OpenAI')
+    def test_api_call_parameters(self, mock_openai_class):
+        """Test API call parameters."""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
         
         email_organizer = EmailOrganizer(config=self.mock_config)
         
