@@ -1,3 +1,13 @@
+"""Gmail API client for email operations.
+
+Provides a wrapper around the Gmail API for:
+- Authenticating with OAuth2
+- Fetching emails with pagination support
+- Creating and managing labels
+- Modifying email labels and archiving
+- Trashing emails
+"""
+
 import os
 import base64
 import json
@@ -108,12 +118,46 @@ class GmailClient:
 
         self.service = build('gmail', 'v1', credentials=self.creds)
 
-    def fetch_emails(self, query=''):
+    def fetch_emails(self, query='', max_results=None):
+        """Fetch emails matching the query with pagination support.
+        
+        Args:
+            query (str): Gmail search query (e.g., 'in:inbox', 'is:unread')
+            max_results (int, optional): Maximum number of emails to fetch. 
+                                        If None, fetches all matching emails.
+        
+        Returns:
+            List of email message dictionaries
+        """
         try:
-            results = self.service.users().messages().list(userId='me', q=query).execute()
-            messages = results.get('messages', [])
+            messages = []
+            page_token = None
+            
+            while True:
+                # Fetch a page of message IDs
+                if max_results and len(messages) >= max_results:
+                    break
+                
+                results = self.service.users().messages().list(
+                    userId='me', 
+                    q=query,
+                    pageToken=page_token,
+                    maxResults=min(500, max_results - len(messages)) if max_results else 500
+                ).execute()
+                
+                page_messages = results.get('messages', [])
+                if not page_messages:
+                    break
+                
+                messages.extend(page_messages)
+                
+                # Check if there are more pages
+                page_token = results.get('nextPageToken')
+                if not page_token:
+                    break
+            
+            # Fetch full message details for each email
             email_data = []
-
             for msg in messages:
                 msg_data = self.service.users().messages().get(userId='me', id=msg['id']).execute()
                 email_data.append(msg_data)
@@ -181,6 +225,26 @@ class GmailClient:
         
         return f"From: {sender}\nSubject: {subject}\n\n{body}"
     
+    def get_message_subject(self, email_id):
+        """Get just the subject line of an email.
+        
+        Args:
+            email_id: The email ID
+            
+        Returns:
+            Subject line string (empty string if no subject)
+        """
+        message = self.service.users().messages().get(
+            userId='me',
+            id=email_id,
+            format='metadata',  # Only get metadata, faster than 'full'
+            metadataHeaders=['Subject']
+        ).execute()
+        
+        headers = message.get('payload', {}).get('headers', [])
+        subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '(No Subject)')
+        return subject
+    
     def _get_message_body(self, payload):
         """Extract message body from payload."""
         body = ''
@@ -204,17 +268,39 @@ class GmailClient:
         return body
     
     def create_label_if_not_exists(self, label_name):
-        """Create a label if it doesn't exist, return label ID."""
+        """Create a label if it doesn't exist, return label ID.
+        
+        Handles Gmail system labels (SPAM, TRASH, INBOX, etc.) by mapping
+        to their proper IDs instead of trying to create them.
+        """
+        # Map common category names to Gmail system label IDs
+        SYSTEM_LABEL_MAP = {
+            'spam': 'SPAM',
+            'trash': 'TRASH',
+            'inbox': 'INBOX',
+            'sent': 'SENT',
+            'draft': 'DRAFT',
+            'drafts': 'DRAFT',
+            'important': 'IMPORTANT',
+            'starred': 'STARRED',
+            'unread': 'UNREAD',
+        }
+        
+        # Check if this is a system label (case-insensitive)
+        label_lower = label_name.lower()
+        if label_lower in SYSTEM_LABEL_MAP:
+            return SYSTEM_LABEL_MAP[label_lower]
+        
         # Get all existing labels
         labels = self.manage_labels('get', None)
         existing_labels = labels.get('labels', [])
         
-        # Check if label already exists
+        # Check if label already exists (case-insensitive match)
         for label in existing_labels:
-            if label['name'] == label_name:
+            if label['name'].lower() == label_lower:
                 return label['id']
         
-        # Create new label
+        # Create new custom label
         label_object = {
             'name': label_name,
             'labelListVisibility': 'labelShow',
@@ -234,6 +320,122 @@ class GmailClient:
     def archive_email(self, email_id):
         """Archive an email by removing INBOX label."""
         self.modify_message(email_id, labels_to_remove=['INBOX'])
+    
+    def trash_email(self, email_id):
+        """Move an email to trash."""
+        self.service.users().messages().trash(
+            userId='me',
+            id=email_id
+        ).execute()
+    
+    def get_message_labels(self, email_id):
+        """Get the label IDs for a specific email.
+        
+        Args:
+            email_id: The email ID
+            
+        Returns:
+            List of label IDs applied to this email
+        """
+        message = self.service.users().messages().get(
+            userId='me',
+            id=email_id,
+            format='minimal'  # Only need metadata
+        ).execute()
+        return message.get('labelIds', [])
+    
+    def get_all_labels(self):
+        """Get all labels in the Gmail account."""
+        return self.manage_labels('get', None)
+    
+    def get_custom_labels(self):
+        """Get only custom labels (excludes Gmail system labels).
+        
+        Returns:
+            List of custom label dictionaries with 'id', 'name', and 'type' keys.
+        """
+        # Gmail system label IDs that should NOT be deleted
+        SYSTEM_LABEL_IDS = {
+            'INBOX', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT',
+            'SENT', 'DRAFT', 'CHAT', 'CATEGORY_PERSONAL', 'CATEGORY_SOCIAL',
+            'CATEGORY_PROMOTIONS', 'CATEGORY_UPDATES', 'CATEGORY_FORUMS'
+        }
+        
+        all_labels = self.get_all_labels()
+        labels = all_labels.get('labels', [])
+        
+        # Filter to only custom labels (type='user' and not in system IDs)
+        custom_labels = []
+        for label in labels:
+            label_id = label.get('id', '')
+            label_type = label.get('type', '')
+            
+            # Keep only user-created labels
+            if label_type == 'user' or (label_id not in SYSTEM_LABEL_IDS and not label_id.startswith('CATEGORY_')):
+                custom_labels.append({
+                    'id': label_id,
+                    'name': label.get('name', ''),
+                    'type': label_type
+                })
+        
+        return custom_labels
+    
+    def delete_custom_label(self, label_id):
+        """Delete a custom label by ID.
+        
+        Args:
+            label_id: The ID of the label to delete
+            
+        Raises:
+            Exception: If trying to delete a system label
+        """
+        # Safety check - don't delete system labels
+        SYSTEM_LABEL_IDS = {
+            'INBOX', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT',
+            'SENT', 'DRAFT', 'CHAT'
+        }
+        
+        if label_id in SYSTEM_LABEL_IDS or label_id.startswith('CATEGORY_'):
+            raise ValueError(f"Cannot delete system label: {label_id}")
+        
+        self.manage_labels('delete', label_id)
+    
+    def delete_all_custom_labels(self, exclude_labels=None):
+        """Delete all custom labels except those specified.
+        
+        Args:
+            exclude_labels: List of label names to preserve (e.g., ['Notes', 'Github'])
+            
+        Returns:
+            Tuple of (deleted_count, skipped_count, errors)
+        """
+        if exclude_labels is None:
+            exclude_labels = []
+        
+        # Convert to lowercase for case-insensitive comparison
+        exclude_labels_lower = [name.lower() for name in exclude_labels]
+        
+        custom_labels = self.get_custom_labels()
+        deleted_count = 0
+        skipped_count = 0
+        errors = []
+        
+        for label in custom_labels:
+            label_name = label['name']
+            label_id = label['id']
+            
+            # Skip labels that should be preserved
+            if label_name.lower() in exclude_labels_lower:
+                skipped_count += 1
+                continue
+            
+            try:
+                self.delete_custom_label(label_id)
+                deleted_count += 1
+            except Exception as e:
+                errors.append((label_name, str(e)))
+        
+        return deleted_count, skipped_count, errors
 
 if __name__ == '__main__':
     client = GmailClient()

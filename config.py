@@ -1,8 +1,41 @@
+"""Configuration management for Email Organizer AI.
+
+Provides centralized configuration loading from environment variables with sensible defaults.
+Supports .env file loading for local development.
+
+Configuration includes:
+- OpenAI API settings (model, API key)
+- Email processing limits (content length, rate limiting)
+- Category and label management
+"""
+
 import os
 from typing import List, Optional
 
+
 class Config:
     """Configuration management for Email Organizer AI."""
+
+    # -----------------------------------------------------------------------------
+    # LLM Provider Selection
+    # -----------------------------------------------------------------------------
+    @property
+    def LLM_PROVIDER(self) -> str:
+        """Which LLM provider to use: 'openai' or 'gemini'"""
+        return os.getenv('LLM_PROVIDER', 'openai').lower()
+
+    # -----------------------------------------------------------------------------
+    # Google Gemini API Configuration
+    # -----------------------------------------------------------------------------
+    @property
+    def GOOGLE_API_KEY(self) -> Optional[str]:
+        """Google Gemini API key for AI-powered email categorization."""
+        return os.getenv('GOOGLE_API_KEY')
+
+    @property
+    def GEMINI_MODEL(self) -> str:
+        """Google Gemini model to use."""
+        return os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
 
     @staticmethod
     def load_env():
@@ -39,12 +72,44 @@ class Config:
     @property
     def OPENAI_MODEL(self) -> str:
         """OpenAI model to use."""
-        return os.getenv('OPENAI_MODEL', 'gpt-4')
+        return os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
     
     @property
     def OPENAI_MAX_TOKENS(self) -> int:
         """Maximum tokens for OpenAI API calls."""
         return int(os.getenv('OPENAI_MAX_TOKENS', '500'))
+    
+    @property
+    def MAX_EMAIL_CONTENT_LENGTH(self) -> int:
+        """Maximum character length for email content sent to AI model.
+        
+        Token calculation is conservative to account for:
+        - System messages and prompts (overhead)
+        - Response tokens
+        - Special characters and formatting (lower char/token ratio)
+        
+        Approximate safe limits for different models:
+        - gpt-3.5-turbo (8k tokens): 8,000 chars (default)
+        - gpt-3.5-turbo-16k: 50,000 chars
+        - gpt-4 (8k tokens): 8,000 chars
+        - gpt-4-turbo (128k): 100,000+ chars
+        
+        Default: 8,000 (safe for 8k token models with overhead)
+        """
+        return int(os.getenv('MAX_EMAIL_CONTENT_LENGTH', '8000'))
+    
+    @property
+    def RATE_LIMIT_DELAY(self) -> float:
+        """Delay in seconds between processing emails to avoid rate limits.
+        
+        Recommended values:
+        - gpt-4 with 10k TPM limit: 2-5 seconds
+        - gpt-3.5-turbo with higher limits: 0.5-1 second
+        - No delay: 0
+        
+        Default: 3 seconds (conservative for gpt-4)
+        """
+        return float(os.getenv('RATE_LIMIT_DELAY', '3'))
 
     # -----------------------------------------------------------------------------
     # Email Processing Configuration
@@ -83,15 +148,38 @@ class Config:
         
         # Default categories
         return [
+            'Notes',
+            'Github',
             'Primary',
-            'Social',
-            'Promotions',
-            'Updates',
-            'Forums',
-            'Important',
-            'Work',
-            'Personal'
         ]
+    
+    @property
+    def CATEGORIES_TO_KEEP(self) -> List[str]:
+        """Email categories to keep (others will be deleted).
+        
+        Only emails matching these categories will be labeled and saved.
+        All other emails will be moved to trash.
+        """
+        categories_env = os.getenv('CATEGORIES_TO_KEEP')
+        if categories_env:
+            return [cat.strip() for cat in categories_env.split(',')]
+        
+        # Default: only keep Notes and Github
+        return ['Notes', 'Github']
+    
+    @property
+    def LABELS_TO_PRESERVE(self) -> List[str]:
+        """Custom labels to preserve when cleaning up labels.
+        
+        These labels will NOT be deleted during label cleanup.
+        Defaults to the same labels as CATEGORIES_TO_KEEP.
+        """
+        labels_env = os.getenv('LABELS_TO_PRESERVE')
+        if labels_env:
+            return [label.strip() for label in labels_env.split(',')]
+        
+        # Default: preserve the same labels we use for categorization
+        return self.CATEGORIES_TO_KEEP
 
     # -----------------------------------------------------------------------------
     # Validation

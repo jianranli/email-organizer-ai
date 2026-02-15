@@ -12,3 +12,14 @@ token.json
 # Virtual Environments
 venv/
 .env/
+
+# Debug and Demo Scripts (local testing only)
+diagnose_auth.py
+test_quick.py
+demo_*.py
+check_last_run.py
+
+# Log and Output Files
+*.log
+output.log
+FINAL_SCAN_REPORT.md
