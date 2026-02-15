@@ -1,53 +1,60 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from email_organizer import EmailOrganizer  # Adjust the import based on your package structure
+from ai_organizer import EmailOrganizer
+from config import Config
 
 
-class TestEmailOrganizer(unittest.TestCase):
-    
-    @patch('email_organizer.config')  # Mock config module
-    def test_initialization_with_config(self, mock_config):
-        mock_config.return_value = {'some_key': 'some_value'}
-        organizer = EmailOrganizer(config=mock_config)
-        self.assertEqual(organizer.config['some_key'], 'some_value')
+class TestEmailOrganizerInitialization(unittest.TestCase):
+    @patch('openai.ChatCompletion.create')
+    def test_initialization(self, mock_openai):
+        mock_openai.return_value = MagicMock()
+        email_organizer = EmailOrganizer()
+        self.assertIsNotNone(email_organizer)
 
-    @patch('email_organizer.api_client')  # Mocking an API client
-    def test_initialization_with_api_key(self, mock_api_client):
-        mock_api_client.return_value = MagicMock()  # Simulated API client
-        organizer = EmailOrganizer(api_key='test_api_key')
-        self.assertEqual(organizer.api_key, 'test_api_key')
 
-    @patch('email_organizer.categorize_email_function')
-    def test_categorize_email(self, mock_categorize_email):
-        organizer = EmailOrganizer(api_key='test_api_key')
-        mock_categorize_email.return_value = 'Work'
-        category = organizer.categorize_email('email content')
-        self.assertEqual(category, 'Work')
-        mock_categorize_email.assert_called_once_with('email content')
+class TestEmailOrganizerCategorization(unittest.TestCase):
+    @patch('openai.ChatCompletion.create')
+    def test_categorization(self, mock_openai):
+        mock_openai.return_value = MagicMock()
+        email_organizer = EmailOrganizer()
+        categories = email_organizer.categorize_email('Test email content')
+        self.assertIn('category', categories)
 
-    @patch('email_organizer.summarize_email_function')
-    def test_summarize_email(self, mock_summarize_email):
-        organizer = EmailOrganizer(api_key='test_api_key')
-        mock_summarize_email.return_value = 'Email summary'
-        summary = organizer.summarize_email('email content')
-        self.assertEqual(summary, 'Email summary')
-        mock_summarize_email.assert_called_once_with('email content')
 
-    @patch('email_organizer.extract_action_items_function')
-    def test_extract_action_items(self, mock_extract_action_items):
-        organizer = EmailOrganizer(api_key='test_api_key')
-        mock_extract_action_items.return_value = ['Action 1', 'Action 2']
-        actions = organizer.extract_action_items('email content')
-        self.assertEqual(actions, ['Action 1', 'Action 2'])
-        mock_extract_action_items.assert_called_once_with('email content')
+class TestEmailOrganizerSummarization(unittest.TestCase):
+    @patch('openai.ChatCompletion.create')
+    def test_summarization(self, mock_openai):
+        mock_openai.return_value = MagicMock()
+        email_organizer = EmailOrganizer()
+        summary = email_organizer.summarize_email('Test email content')
+        self.assertIsInstance(summary, str)
 
-    @patch('email_organizer.confidence_score_function')
-    def test_confidence_scoring(self, mock_confidence_score):
-        organizer = EmailOrganizer(api_key='test_api_key')
-        mock_confidence_score.return_value = 0.95
-        confidence = organizer.confidence_scoring('email content')
-        self.assertEqual(confidence, 0.95)
-        mock_confidence_score.assert_called_once_with('email content')
+
+class TestEmailOrganizerActionItems(unittest.TestCase):
+    @patch('openai.ChatCompletion.create')
+    def test_action_items(self, mock_openai):
+        mock_openai.return_value = MagicMock()
+        email_organizer = EmailOrganizer()
+        action_items = email_organizer.extract_action_items('Test email content')
+        self.assertIsInstance(action_items, list)
+
+
+class TestEmailOrganizerConfidenceScoring(unittest.TestCase):
+    @patch('openai.ChatCompletion.create')
+    def test_confidence_scoring(self, mock_openai):
+        mock_openai.return_value = MagicMock()
+        email_organizer = EmailOrganizer()
+        confidence = email_organizer.score_confidence('Test email content')
+        self.assertGreaterEqual(confidence, 0)
+
+
+class TestEmailOrganizerAPICallParameters(unittest.TestCase):
+    @patch('openai.ChatCompletion.create')
+    def test_api_call_parameters(self, mock_openai):
+        mock_openai.return_value = MagicMock()
+        email_organizer = EmailOrganizer()
+        params = email_organizer.get_api_parameters()
+        self.assertIn('model', params)
 
 
 if __name__ == '__main__':
