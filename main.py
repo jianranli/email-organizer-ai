@@ -26,7 +26,7 @@ def main(max_emails=None):
         logger.info("Successfully authenticated with Gmail")
         
         # Fetch unread emails
-        emails = gmail_client.fetch_emails(service, query='is:unread')
+        emails = gmail_client.fetch_emails(query='is:unread')
         logger.info(f"Fetched {len(emails)} unread emails")
         
         # Limit the number of emails if specified
@@ -44,7 +44,7 @@ def main(max_emails=None):
             try:
                 # Extract email content
                 email_id = email['id']
-                message = gmail_client.get_message(service, email_id)
+                message = gmail_client.get_message(email_id)
                 
                 # Organize with AI
                 categorization = organizer.categorize_email(message)
@@ -55,13 +55,12 @@ def main(max_emails=None):
                 
                 # Create or get label
                 label_id = gmail_client.create_label_if_not_exists(
-                    service, 
                     categorization['category']
                 )
                 
                 # Apply label and archive
-                gmail_client.apply_label(service, email_id, label_id)
-                gmail_client.archive_email(service, email_id)
+                gmail_client.apply_label(email_id, label_id)
+                gmail_client.archive_email(email_id)
                 
                 processed_count += 1
                 logger.info(f"Email {email_id} processed and archived ({processed_count}/{len(emails)})")
