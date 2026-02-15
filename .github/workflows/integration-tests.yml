@@ -36,8 +36,7 @@ jobs:
       
       - name: Run unit tests
         run: |
-          python -m unittest discover -s . -p "test_gmail_client.py" -v
-          python -m unittest discover -s . -p "test_ai_organizer.py" -v
+          python -m unittest discover -s test -p "test_*.py" -v
       
       - name: Run integration tests
         env:
@@ -45,5 +44,4 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEND_REAL_EMAILS: ${{ github.event.inputs.send_emails || 'false' }}
         run: |
-          python -m unittest test_gmail_client_integration.py -v
-          python -m unittest test_ai_organizer_integration.py -v
+          python -m unittest discover -s test -p "*_integration.py" -v
