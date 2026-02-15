@@ -35,10 +35,15 @@ jobs:
           pip install -r requirements.txt
       
       - name: Run unit tests
-        run: python -m unittest discover -s . -p "test_gmail_client.py" -v
+        run: |
+          python -m unittest discover -s . -p "test_gmail_client.py" -v
+          python -m unittest discover -s . -p "test_ai_organizer.py" -v
       
       - name: Run integration tests
         env:
           GMAIL_CREDENTIALS_JSON: ${{ secrets.GMAIL_CREDENTIALS_JSON }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEND_REAL_EMAILS: ${{ github.event.inputs.send_emails || 'false' }}
-        run: python -m unittest test_gmail_client_integration.py -v
+        run: |
+          python -m unittest test_gmail_client_integration.py -v
+          python -m unittest test_ai_organizer_integration.py -v
