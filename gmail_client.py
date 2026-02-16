@@ -245,6 +245,36 @@ class GmailClient:
         subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '(No Subject)')
         return subject
     
+    def get_message_headers(self, email_id) -> dict:
+        """Get all email headers for unsubscribe detection.
+        
+        Args:
+            email_id: The email ID
+            
+        Returns:
+            Dictionary with headers including:
+            - List-Unsubscribe
+            - List-Unsubscribe-Post
+            - From
+            - Subject
+        """
+        message = self.service.users().messages().get(
+            userId='me',
+            id=email_id,
+            format='metadata'
+        ).execute()
+        
+        headers = message.get('payload', {}).get('headers', [])
+        
+        # Convert headers list to dictionary
+        header_dict = {}
+        for header in headers:
+            name = header.get('name', '')
+            value = header.get('value', '')
+            header_dict[name] = value
+        
+        return header_dict
+    
     def _get_message_body(self, payload):
         """Extract message body from payload."""
         body = ''

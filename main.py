@@ -22,9 +22,24 @@ import time
 from gmail_client import GmailClient
 from ai_organizer import EmailOrganizer
 from config import Config
+from unsubscribe_handler import UnsubscribeHandler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def extract_sender_from_message(message: str) -> str:
+    """Extract sender email address from email message.
+    
+    Args:
+        message: Full email message text
+        
+    Returns:
+        Sender email address or empty string if not found
+    """
+    for line in message.split('\n'):
+        if line.startswith('From:'):
+            return line.split(':', 1)[1].strip()
+    return ''
 
 def main(max_emails=None):
     """Main entry point for the email organizer.
@@ -61,6 +76,21 @@ def main(max_emails=None):
         kept_count = 0
         trashed_count = 0
         rate_limited_emails = []  # Track emails that hit rate limits for retry
+        
+        # Track unsubscribe statistics
+        unsubscribe_attempted = 0
+        unsubscribe_success = 0
+        unsubscribe_failed = 0
+        unsubscribe_manual = 0
+        
+        # Initialize unsubscribe handler if enabled
+        unsubscribe_handler = None
+        if config.AUTO_UNSUBSCRIBE_ENABLED:
+            unsubscribe_handler = UnsubscribeHandler(config)
+            logger.info(f"Auto-unsubscribe enabled (dry_run={config.UNSUBSCRIBE_DRY_RUN})")
+            logger.info(f"  Target categories: {', '.join(config.UNSUBSCRIBE_CATEGORIES)}")
+            logger.info(f"  Target sender patterns: {', '.join(config.UNSUBSCRIBE_SENDER_PATTERNS)}")
+            logger.info("")
         
         # Get all existing category label IDs for filtering
         all_labels = gmail_client.get_all_labels().get('labels', [])
@@ -106,6 +136,40 @@ def main(max_emails=None):
                 # Log categorization with subject
                 logger.info(f"📧 Subject: \"{subject_display}\"")
                 logger.info(f"   Category: [{category}]")
+                
+                # Check if unsubscribe is enabled and applicable
+                if unsubscribe_handler:
+                    # Extract sender from message
+                    from_header = extract_sender_from_message(message)
+                    
+                    # Check if we should unsubscribe
+                    if unsubscribe_handler.should_unsubscribe(message, category, from_header):
+                        # Get email headers for unsubscribe detection
+                        headers = gmail_client.get_message_headers(email_id)
+                        
+                        # Extract unsubscribe info
+                        unsubscribe_info = unsubscribe_handler.extract_unsubscribe_info(message, headers)
+                        
+                        if unsubscribe_info['has_unsubscribe']:
+                            unsubscribe_attempted += 1
+                            
+                            # Attempt to unsubscribe
+                            result = unsubscribe_handler.unsubscribe(
+                                unsubscribe_info, 
+                                email_id, 
+                                dry_run=config.UNSUBSCRIBE_DRY_RUN
+                            )
+                            
+                            if result['success']:
+                                if result['action_taken'] == 'manual-required':
+                                    unsubscribe_manual += 1
+                                    logger.info(f"   ℹ Unsubscribe: {result['message']}")
+                                else:
+                                    unsubscribe_success += 1
+                                    logger.info(f"   ✓ Unsubscribed: {result['message']}")
+                            else:
+                                unsubscribe_failed += 1
+                                logger.warning(f"   ⚠ Could not unsubscribe: {result['message']}")
                 
                 # Check if this category should be kept
                 if category in config.CATEGORIES_TO_KEEP:
@@ -195,6 +259,40 @@ def main(max_emails=None):
                         logger.info(f"📧 Subject: \"{subject_display}\"")
                         logger.info(f"   Category: [{category}]")
                         
+                        # Check if unsubscribe is enabled and applicable
+                        if unsubscribe_handler:
+                            # Extract sender from message
+                            from_header = extract_sender_from_message(message)
+                            
+                            # Check if we should unsubscribe
+                            if unsubscribe_handler.should_unsubscribe(message, category, from_header):
+                                # Get email headers for unsubscribe detection
+                                headers = gmail_client.get_message_headers(email_id)
+                                
+                                # Extract unsubscribe info
+                                unsubscribe_info = unsubscribe_handler.extract_unsubscribe_info(message, headers)
+                                
+                                if unsubscribe_info['has_unsubscribe']:
+                                    unsubscribe_attempted += 1
+                                    
+                                    # Attempt to unsubscribe
+                                    result = unsubscribe_handler.unsubscribe(
+                                        unsubscribe_info, 
+                                        email_id, 
+                                        dry_run=config.UNSUBSCRIBE_DRY_RUN
+                                    )
+                                    
+                                    if result['success']:
+                                        if result['action_taken'] == 'manual-required':
+                                            unsubscribe_manual += 1
+                                            logger.info(f"   ℹ Unsubscribe: {result['message']}")
+                                        else:
+                                            unsubscribe_success += 1
+                                            logger.info(f"   ✓ Unsubscribed: {result['message']}")
+                                    else:
+                                        unsubscribe_failed += 1
+                                        logger.warning(f"   ⚠ Could not unsubscribe: {result['message']}")
+                        
                         # Check if this category should be kept
                         if category in config.CATEGORIES_TO_KEEP:
                             # Only process summary and action items for emails we keep
@@ -267,6 +365,16 @@ def main(max_emails=None):
             print(f"  ✓ Kept:         {kept_count} emails (labeled & archived)")
             print(f"  ✗ Trashed:      {trashed_count} emails (moved to trash)")
             print(f"Total Processed:  {processed_count} emails")
+            
+            # Display unsubscribe summary if enabled
+            if unsubscribe_handler and unsubscribe_attempted > 0:
+                print("\n" + "=" * 70)
+                print("UNSUBSCRIBE SUMMARY")
+                print("=" * 70)
+                print(f"  ✓ Successfully unsubscribed: {unsubscribe_success} emails")
+                print(f"  ⚠ Failed to unsubscribe:     {unsubscribe_failed} emails")
+                print(f"  ℹ Manual action needed:      {unsubscribe_manual} emails")
+                print(f"Total Attempted:  {unsubscribe_attempted} emails")
         else:
             print("\nNo emails were processed.")
             if skipped_already_labeled > 0:

@@ -120,3 +120,33 @@ class Config:
         """Custom labels to apply to emails (optional)."""
         labels_str = os.getenv('CUSTOM_LABELS', '')
         return [label.strip() for label in labels_str.split(',') if label.strip()]
+
+    # -----------------------------------------------------------------------------
+    # Automatic Unsubscribe Settings
+    # -----------------------------------------------------------------------------
+    @property
+    def AUTO_UNSUBSCRIBE_ENABLED(self) -> bool:
+        """Enable automatic unsubscribe feature."""
+        return os.getenv('AUTO_UNSUBSCRIBE_ENABLED', 'false').lower() in ['true', '1', 'yes']
+
+    @property
+    def UNSUBSCRIBE_CATEGORIES(self) -> List[str]:
+        """Categories to auto-unsubscribe from."""
+        categories_str = os.getenv('UNSUBSCRIBE_CATEGORIES', 'Promotions,Newsletters,Social,Spam')
+        return [cat.strip() for cat in categories_str.split(',')]
+
+    @property
+    def UNSUBSCRIBE_SENDER_PATTERNS(self) -> List[str]:
+        """Sender email patterns to target for auto-unsubscribe."""
+        patterns_str = os.getenv('UNSUBSCRIBE_SENDER_PATTERNS', 'noreply@,no-reply@,donotreply@')
+        return [pattern.strip() for pattern in patterns_str.split(',')]
+
+    @property
+    def UNSUBSCRIBE_DRY_RUN(self) -> bool:
+        """Dry run mode - detect but don't actually unsubscribe."""
+        return os.getenv('UNSUBSCRIBE_DRY_RUN', 'true').lower() in ['true', '1', 'yes']
+
+    @property
+    def UNSUBSCRIBE_TIMEOUT(self) -> int:
+        """Timeout for unsubscribe HTTP requests (seconds)."""
+        return int(os.getenv('UNSUBSCRIBE_TIMEOUT', '10'))

@@ -12,6 +12,7 @@ Automatically categorize and organize your Gmail emails using AI-powered languag
 - 📊 **Detailed Logging**: See exactly what's happening with each email
 - 🔒 **Safe Operations**: System labels protected, confirmation prompts for destructive actions
 - ♻️ **Smart Retry Logic**: Automatically retries rate-limited emails up to 3 times with increasing delays
+- 🚫 **Automatic Unsubscribe**: Automatically detect and unsubscribe from marketing emails and newsletters
 
 ## Quick Start
 
@@ -238,6 +239,92 @@ export MAX_EMAIL_CONTENT_LENGTH=6000  # Lower from 8000
 CATEGORIES_TO_KEEP=Notes python main.py -n 10
 ```
 
+## Automatic Unsubscribe Feature
+
+Automatically detect and unsubscribe from marketing emails, newsletters, and promotional messages.
+
+### Configuration
+
+Enable the feature by setting environment variables:
+
+```bash
+# Enable auto-unsubscribe
+export AUTO_UNSUBSCRIBE_ENABLED=true
+
+# Target specific categories
+export UNSUBSCRIBE_CATEGORIES=Promotions,Newsletters,Spam
+
+# Target specific sender patterns
+export UNSUBSCRIBE_SENDER_PATTERNS=noreply@,@zillow.com,@marketing.
+
+# Start with dry-run mode (recommended)
+export UNSUBSCRIBE_DRY_RUN=true
+```
+
+### How It Works
+
+1. **Detection**: Scans emails for unsubscribe links in headers and body
+   - Parses `List-Unsubscribe` header (RFC 2369)
+   - Parses `List-Unsubscribe-Post` header for one-click unsubscribe (RFC 8058)
+   - Searches email body for common unsubscribe link patterns
+
+2. **Filtering**: Only processes emails matching configured categories and sender patterns
+   - Category-based filtering (e.g., Promotions, Newsletters)
+   - Sender pattern matching (e.g., noreply@, @zillow.com)
+
+3. **Unsubscribe Methods**:
+   - **One-click unsubscribe (RFC 8058)**: Automated HTTP POST ✓
+   - **HTTP GET links**: Automated click ✓
+   - **Web forms**: Logged for manual action ⚠
+   - **mailto: links**: Logged for manual action ⚠
+
+### Safety Features
+
+- **Dry-run mode**: Preview what would be unsubscribed without taking action
+- **Domain validation**: Prevents clicking on phishing links
+- **Rate limiting**: Prevents overwhelming servers with requests
+- **SSL verification**: Ensures secure connections
+- **Detailed logging**: Track all unsubscribe attempts
+
+### Example Usage
+
+```bash
+# Preview unsubscribe actions (dry-run)
+AUTO_UNSUBSCRIBE_ENABLED=true UNSUBSCRIBE_DRY_RUN=true python main.py -n 50
+
+# Actually unsubscribe
+AUTO_UNSUBSCRIBE_ENABLED=true UNSUBSCRIBE_DRY_RUN=false python main.py -n 50
+
+# Target specific senders
+UNSUBSCRIBE_SENDER_PATTERNS=@zillow.com,@redfin.com python main.py -n 20
+```
+
+### Configuration Options
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTO_UNSUBSCRIBE_ENABLED` | `false` | Enable automatic unsubscribe feature |
+| `UNSUBSCRIBE_CATEGORIES` | `Promotions,Newsletters,Social,Spam` | Categories to target for unsubscribe |
+| `UNSUBSCRIBE_SENDER_PATTERNS` | `noreply@,no-reply@,donotreply@` | Sender email patterns to match |
+| `UNSUBSCRIBE_DRY_RUN` | `true` | Dry run mode (detect but don't unsubscribe) |
+| `UNSUBSCRIBE_TIMEOUT` | `10` | Timeout for HTTP requests in seconds |
+
+### Expected Output
+
+When running with unsubscribe enabled:
+
+```
+📧 Subject: "Weekly Newsletter from Zillow"
+   Category: [Newsletters]
+   ✓ Unsubscribed: Successfully unsubscribed via one-click (status: 200)
+   ✗ Action: Moved to trash (unwanted category)
+
+=== UNSUBSCRIBE SUMMARY ===
+✓ Successfully unsubscribed: 12 emails
+⚠ Failed to unsubscribe: 2 emails
+ℹ Manual action needed: 3 emails
+```
+
 ## Project Structure
 
 ```
@@ -246,6 +333,7 @@ email-organizer-ai/
 ├── gmail_client.py                  # Gmail API client
 ├── ai_organizer.py                  # LLM integration (OpenAI/Gemini)
 ├── google_gemini_helper.py          # Google Gemini implementation
+├── unsubscribe_handler.py           # Automatic unsubscribe handler
 ├── config.py                        # Configuration management
 ├── verify_secrets.py                # Credential verifier
 ├── generate_credentials.py          # Credential generator
