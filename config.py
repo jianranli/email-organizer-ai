@@ -105,6 +105,17 @@ class Config:
         return [cat.strip() for cat in categories_str.split(',')]
 
     @property
+    def EMAIL_CATEGORIES(self) -> List[str]:
+        """Email categories for AI classification (alias for DEFAULT_CATEGORIES)."""
+        return self.DEFAULT_CATEGORIES
+
+    @property
+    def CATEGORIES_TO_KEEP(self) -> List[str]:
+        """Categories to keep and archive (others will be trashed)."""
+        categories_str = os.getenv('CATEGORIES_TO_KEEP', 'Notes,Github')
+        return [cat.strip() for cat in categories_str.split(',')]
+
+    @property
     def CUSTOM_LABELS(self) -> List[str]:
         """Custom labels to apply to emails (optional)."""
         labels_str = os.getenv('CUSTOM_LABELS', '')
