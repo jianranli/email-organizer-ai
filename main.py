@@ -27,6 +27,20 @@ from unsubscribe_handler import UnsubscribeHandler
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def extract_sender_from_message(message: str) -> str:
+    """Extract sender email address from email message.
+    
+    Args:
+        message: Full email message text
+        
+    Returns:
+        Sender email address or empty string if not found
+    """
+    for line in message.split('\n'):
+        if line.startswith('From:'):
+            return line.split(':', 1)[1].strip()
+    return ''
+
 def main(max_emails=None):
     """Main entry point for the email organizer.
     
@@ -126,7 +140,7 @@ def main(max_emails=None):
                 # Check if unsubscribe is enabled and applicable
                 if unsubscribe_handler:
                     # Extract sender from message
-                    from_header = next((line.split(':', 1)[1].strip() for line in message.split('\n') if line.startswith('From:')), '')
+                    from_header = extract_sender_from_message(message)
                     
                     # Check if we should unsubscribe
                     if unsubscribe_handler.should_unsubscribe(message, category, from_header):
@@ -248,7 +262,7 @@ def main(max_emails=None):
                         # Check if unsubscribe is enabled and applicable
                         if unsubscribe_handler:
                             # Extract sender from message
-                            from_header = next((line.split(':', 1)[1].strip() for line in message.split('\n') if line.startswith('From:')), '')
+                            from_header = extract_sender_from_message(message)
                             
                             # Check if we should unsubscribe
                             if unsubscribe_handler.should_unsubscribe(message, category, from_header):

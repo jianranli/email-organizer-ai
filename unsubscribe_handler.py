@@ -17,7 +17,6 @@ import logging
 from typing import Dict, Optional, List
 from urllib.parse import urlparse, parse_qs
 import requests
-from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
