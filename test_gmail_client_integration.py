@@ -54,6 +54,60 @@ class TestGmailClientIntegration(unittest.TestCase):
         label_names = [label['name'] for label in labels]
         self.assertIn('INBOX', label_names, "INBOX label should exist")
         print(f"✅ Found {len(labels)} labels in Gmail account")
+        
+        # Print all label names in a readable format
+        print("   Label names:")
+        for label in labels:
+            print(f"      - {label['name']}")
+
+    def test_list_recent_emails(self):
+        """Test to list recent emails and print their subjects"""
+        # List messages from inbox (max 3)
+        results = self.service.users().messages().list(
+            userId='me', 
+            maxResults=3
+        ).execute()
+        messages = results.get('messages', [])
+        
+        # Handle empty inbox case
+        if not messages:
+            print("✅ Inbox is empty (no emails found)")
+            return
+        
+        # Verify we got valid data
+        self.assertIsInstance(messages, list)
+        self.assertGreater(len(messages), 0)
+        
+        print(f"✅ Found {len(messages)} recent email(s):")
+        
+        # Get full message details and extract subjects
+        for idx, message in enumerate(messages, start=1):
+            # Fetch full message details
+            msg = self.service.users().messages().get(
+                userId='me', 
+                id=message['id']
+            ).execute()
+            
+            # Verify message structure
+            self.assertIn('id', msg)
+            self.assertIn('payload', msg)
+            
+            # Extract subject from headers
+            headers = msg['payload'].get('headers', [])
+            subject = None
+            for header in headers:
+                if header['name'] == 'Subject':
+                    subject = header['value']
+                    break
+            
+            # Handle case where subject might be missing
+            if subject is None:
+                subject = "(No subject)"
+            
+            # Verify subject is a string
+            self.assertIsInstance(subject, str)
+            
+            print(f"   {idx}. Subject: \"{subject}\"")
 
     def test_create_and_delete_category(self):
         """Test creating a new label/category and then deleting it"""
